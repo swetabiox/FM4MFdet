@@ -1,21 +1,3 @@
-# configs/deformable_detr_virchow_midogpp.py
-#
-# Deformable DETR with a FROZEN Virchow (ViT-H/14) backbone +
-# SimpleFeaturePyramid neck, for mitotic-figure detection on MIDOG++.
-#
-# BACKBONE (Virchow model card, paige-ai/Virchow):
-#   - ViT-H/14: patch 14, embed_dim 1280, 32 layers, 16 heads, SwiGLU FFN,
-#     LayerScale, CLS token only (no register tokens).
-#   - ImageNet normalization (DINOv2 recipe).
-#
-# PATCH 14 -> same setup as H0 / H1 / UNI2-h DETR (1008 input -> 72x72 map).
-# Deformable DETR uses normalized reference points, so no anchor/stride
-# alignment is needed; SFP produces 4 levels at 256 channels.
-#
-# Deformable DETR head / optimizer / schedule / augmentation are IDENTICAL to
-# the H0 / H1 / UNI2-h DETR configs (kept constant for a fair backbone
-# comparison); only the backbone and embed_dim (1280) change vs UNI2-h.
-
 custom_imports = dict(
     imports=[
         'src.custom_mmdet.backbones.virchow_vit',
@@ -27,7 +9,7 @@ custom_imports = dict(
 
 _base_ = 'mmdet::deformable_detr/deformable-detr_r50_16xb2-50e_coco.py'
 
-img_scale = (1008, 1008)        # patch-14 divisible (1008/14 = 72)
+img_scale = (1008, 1008)        
 
 metainfo = dict(
     classes=('mitotic figure',),
@@ -37,8 +19,8 @@ metainfo = dict(
 model = dict(
     data_preprocessor=dict(
         type='DetDataPreprocessor',
-        mean=[123.675, 116.28, 103.53],   # ImageNet RGB mean (UNI2-h / DINOv2)
-        std=[58.395, 57.12, 57.375],      # ImageNet RGB std
+        mean=[123.675, 116.28, 103.53],   
+        std=[58.395, 57.12, 57.375],      
         bgr_to_rgb=True,
         pad_size_divisor=1,
     ),
@@ -49,9 +31,7 @@ model = dict(
         frozen=True,
     ),
 
-    # Virchow emits one (B, 1280, 72, 72) map. SimpleFeaturePyramid expands it
-    # to 4 levels at 256 channels for Deformable DETR's multi-scale deformable
-    # attention. No ChannelMapper needed.
+
     neck=dict(
         _delete_=True,
         type='SimpleFeaturePyramid',
@@ -79,9 +59,7 @@ model = dict(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline -- IDENTICAL to H0 / H1 DETR configs.
-# ---------------------------------------------------------------------------
+
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -176,15 +154,13 @@ test_dataloader = dict(
     )
 )
 
-# ---------------------------------------------------------------------------
-# Optimisation: canonical Deformable DETR recipe -- IDENTICAL to H0 / H1.
-# ---------------------------------------------------------------------------
+
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=2e-4, weight_decay=1e-4, betas=(0.9, 0.999)),
     clip_grad=dict(max_norm=0.1, norm_type=2),
-    accumulative_counts=2,   # 16 (physical) x 2 = 32 effective batch
+    accumulative_counts=2,  
 )
 
 _max_epochs = 100
@@ -234,7 +210,6 @@ resume = False
 
 work_dir = './outputs/work_dirs/deformable_detr_virchow_1008_100epochs'
 
-# --- early stopping (identical to H0 / H1) ---
 custom_hooks = [
     dict(
         type='EarlyStoppingHook',
@@ -245,7 +220,6 @@ custom_hooks = [
     ),
 ]
 
-# --- Weights & Biases (online) ---
 vis_backends = [
     dict(type='LocalVisBackend'),
     dict(
