@@ -1,25 +1,3 @@
-# configs/deformable_detr_h0_midogpp.py
-#
-# Deformable DETR with a FROZEN H-Optimus-0 (ViT-g/14) backbone +
-# SimpleFeaturePyramid neck, for mitotic-figure detection on MIDOG++.
-#
-# BACKBONE (H-optimus-0 model card, bioptimus/H-optimus-0):
-#   - ViT-g/14: patch 14, embed_dim 1536, 1.1B params.
-#   - H-OPTIMUS-SPECIFIC normalization stats (NOT ImageNet).
-#
-# PATCH 14 -> 1008 input -> 72x72 token map, same as the other DETR configs.
-#
-# Deformable DETR head / optimizer / schedule / augmentation are IDENTICAL to
-# the H1 / UNI2-h / Virchow / Virchow2 DETR configs (kept constant for a fair
-# backbone comparison); only the backbone and normalization change.
-#
-# *** 4-GPU DDP VERSION (MUSICA full node) ***
-# Effective batch is held at 32 to match the single-GPU DETR cells:
-#   single-GPU: batch_size=16 x accumulative_counts=2          = 32
-#   4-GPU DDP : batch_size=8 (per GPU) x 4 GPUs x accum 1       = 32
-# Launch with torchrun --nproc_per_node=4 (see the sbatch). The LR, schedule
-# and all else are UNCHANGED, so results stay comparable to the other cells.
-
 custom_imports = dict(
     imports=[
         'src.custom_mmdet.backbones.hoptimus0_vit',
@@ -53,9 +31,7 @@ model = dict(
         frozen=True,
     ),
 
-    # H-optimus-0 emits one (B, 1536, 72, 72) map. SimpleFeaturePyramid expands it
-    # to 4 levels at 256 channels for Deformable DETR's multi-scale deformable
-    # attention. No ChannelMapper needed.
+
     neck=dict(
         _delete_=True,
         type='SimpleFeaturePyramid',
@@ -83,9 +59,6 @@ model = dict(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline -- IDENTICAL to H0 / H1 DETR configs.
-# ---------------------------------------------------------------------------
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -131,7 +104,7 @@ test_pipeline = val_pipeline
 data_root = './data/'
 
 train_dataloader = dict(
-    batch_size=8,    # per-GPU; 8 x 4 GPUs (DDP) = 32 effective (was 16 x accum2 on 1 GPU)
+    batch_size=8,    
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -180,15 +153,13 @@ test_dataloader = dict(
     )
 )
 
-# ---------------------------------------------------------------------------
-# Optimisation: canonical Deformable DETR recipe -- IDENTICAL to H0 / H1.
-# ---------------------------------------------------------------------------
+
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=2e-4, weight_decay=1e-4, betas=(0.9, 0.999)),
     clip_grad=dict(max_norm=0.1, norm_type=2),
-    accumulative_counts=1,   # DDP: 8 per-GPU x 4 GPUs = 32 effective (no accum needed)
+    accumulative_counts=1,  
 )
 
 _max_epochs = 100
@@ -238,7 +209,6 @@ resume = False
 
 work_dir = './outputs/work_dirs/deformable_detr_h0_1008_100epochs'
 
-# --- early stopping (identical to H0 / H1) ---
 custom_hooks = [
     dict(
         type='EarlyStoppingHook',
@@ -249,7 +219,6 @@ custom_hooks = [
     ),
 ]
 
-# --- Weights & Biases (online) ---
 vis_backends = [
     dict(type='LocalVisBackend'),
     dict(
