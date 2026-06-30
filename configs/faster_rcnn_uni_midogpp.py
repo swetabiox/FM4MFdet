@@ -1,24 +1,3 @@
-# configs/faster_rcnn_uni_midogpp.py
-#
-# Faster R-CNN with a FROZEN UNI (ViT-L/16) backbone + SimpleFeaturePyramid
-# neck, for mitotic-figure detection on MIDOG++ (1024x1024 patches).
-#
-# BACKBONE (UNI model card, MahmoodLab/UNI):
-#   - ViT-Large/16  (patch size = 16), embed_dim = 1024
-#   - img_size=1024 -> token map 64x64, physical stride 16
-#
-# NECK strides: scale_factors (2.0,1.0,0.5,0.25,0.125) on a stride-16 map give
-# physical strides [8, 16, 32, 64, 128] -- these MATCH the head strides below
-# because UNI is patch-16 (unlike H0/H1 patch-14). Do not reuse these strides
-# for a patch-14 backbone without recomputing.
-#
-# AUGMENTATION matches the H0/H1 Deformable DETR configs (geometric + stain +
-# photometric), so the backbone comparison is not confounded by augmentation.
-#
-# HYPERPARAMETERS follow standard Faster R-CNN practice (FPN defaults) with
-# task-specific adjustments for small, single-class, frozen-backbone detection.
-# See inline notes.
-
 custom_imports = dict(
     imports=[
         'src.custom_mmdet.backbones.uni_vit',
@@ -40,8 +19,8 @@ metainfo = dict(
 model = dict(
     data_preprocessor=dict(
         type='DetDataPreprocessor',
-        mean=[123.675, 116.28, 103.53],   # ImageNet RGB mean (matches UNI)
-        std=[58.395, 57.12, 57.375],      # ImageNet RGB std
+        mean=[123.675, 116.28, 103.53],  
+        std=[58.395, 57.12, 57.375],     
         bgr_to_rgb=True,
         pad_size_divisor=1,
     ),
@@ -56,26 +35,12 @@ model = dict(
     neck=dict(
         _delete_=True,
         type='SimpleFeaturePyramid',
-        in_channels=1024,                 # UNI embed_dim (ViT-L)
+        in_channels=1024,                
         out_channels=256,
         scale_factors=(2.0, 1.0, 0.5, 0.25, 0.125),
         norm='LN',
     ),
 
-    # -----------------------------------------------------------------------
-    # RPN head
-    # -----------------------------------------------------------------------
-    # STANDARD FPN Faster R-CNN uses ONE anchor scale per level (scales=[8])
-    # with the FPN strides [4,8,16,32,64] -> base anchor sizes 32..512, i.e.
-    # one octave per level. Lin et al. (FPN, 2017) and the mmdet default both
-    # use scales=[8], ratios=[0.5,1,2], one scale per level.
-    #
-    # Here strides are [8,16,32,64,128] and mitoses are small/near-isotropic.
-    # We keep the LITERATURE-STANDARD single octave scale (scales=[8]) so each
-    # level covers exactly one size band -> base anchors 64,128,...; the finest
-    # level (stride 8 x scale 8 = 64 px) already brackets the ~50px mitosis
-    # box, and the RPN regresses the rest. (The earlier scales=[4,8] doubled
-    # anchors per level off-spec; reverting to the standard single octave.)
     rpn_head=dict(
         anchor_generator=dict(
             type='AnchorGenerator',
@@ -98,11 +63,6 @@ model = dict(
             type='SingleRoIExtractor',
             roi_layer=dict(type='RoIAlign', output_size=7, sampling_ratio=0),
             out_channels=256,
-            # Standard FPN RoIExtractor uses the 4 finest levels for RoI
-            # pooling (strides 4..32); the coarsest FPN level feeds RPN only.
-            # Here we keep the finest 4 of our 5 levels [8,16,32,64], which is
-            # the literature-standard arrangement and the right size band for
-            # small mitoses.
             featmap_strides=[8, 16, 32, 64],
         ),
         bbox_head=dict(
@@ -121,11 +81,7 @@ model = dict(
         )
     ),
 
-    # -----------------------------------------------------------------------
-    # Train cfg -- standard Faster R-CNN RPN/RCNN assigner+sampler settings
-    # (Ren et al. 2015 / mmdet defaults). These are the literature values;
-    # kept unchanged because they are well-validated for single-class too.
-    # -----------------------------------------------------------------------
+
     train_cfg=dict(
         rpn=dict(
             assigner=dict(
@@ -174,13 +130,7 @@ model = dict(
         )
     ),
 
-    # -----------------------------------------------------------------------
-    # Test cfg
-    # -----------------------------------------------------------------------
-    # Low score_thr (0.05) so FROC/threshold-sweep has the full operating
-    # range. max_per_img 300 (>COCO's 100) because a dense 1024 patch can hold
-    # many mitoses. These are evaluation-driven, not model-quality changes.
-    # -----------------------------------------------------------------------
+
     test_cfg=dict(
         rpn=dict(
             nms_pre=2000,
@@ -196,16 +146,10 @@ model = dict(
     )
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline (matches H0/H1: geometric + stain + photometric)
-# Order: geometric (operate on boxes too) -> stain -> photometric -> pack.
-# All photometric/stain ops MODERATE because the backbone is FROZEN.
-# ---------------------------------------------------------------------------
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
 
-    # --- geometric ---
     dict(type='Resize', scale=img_scale, keep_ratio=False, backend='pillow'),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
     dict(
@@ -218,7 +162,6 @@ train_pipeline = [
         border_val=(114, 114, 114),
     ),
 
-    # --- pathology stain jitter (custom, shared transform) ---
     dict(
         type='HEDStainAugment',
         sigma=0.05,
@@ -226,8 +169,7 @@ train_pipeline = [
         prob=0.5,
     ),
 
-    # --- generic photometric (brightness/contrast/saturation/hue) ---
-    # Aligned to H0/H1 moderate values for cross-matrix consistency.
+
     dict(
         type='PhotoMetricDistortion',
         brightness_delta=16,
@@ -299,15 +241,7 @@ test_dataloader = dict(
     )
 )
 
-# ---------------------------------------------------------------------------
-# Optimizer
-# ---------------------------------------------------------------------------
-# LITERATURE NOTE: the canonical Faster R-CNN / FPN recipe (Ren 2015, Lin 2017,
-# Detectron2) uses SGD (lr 0.02, momentum 0.9, wd 1e-4) at batch 16 with a
-# trainable backbone. Here the backbone is FROZEN and the neck uses LayerNorm,
-# so AdamW is the appropriate optimizer (SGD+LN/ViT-neck is unstable). We keep
-# AdamW lr 2e-4 (linear-scaled from 1e-4 at batch 8), wd 1e-4, and zero decay
-# on norm/bias params -- standard for ViT-derived modules.
+
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
@@ -353,14 +287,6 @@ resume = False
 work_dir = './outputs/work_dirs/faster_rcnn_uni_1024_100epochs'
 
 
-# ---------------------------------------------------------------------------
-# Training loop, LR schedule, early stopping
-# ---------------------------------------------------------------------------
-# LITERATURE NOTE: standard Faster R-CNN uses a STEP schedule (drop x0.1 at
-# 8/11 of a 12-epoch 1x run). With a frozen backbone + small task we use a
-# longer budget (<=100 epochs) governed by early stopping; cosine decay over
-# the budget is a common, well-behaved choice when the stopping point is not
-# fixed in advance. Warmup is iteration-based (500 iters at batch 16).
 _max_epochs = 100
 
 train_cfg = dict(
@@ -387,9 +313,7 @@ custom_hooks = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Weights & Biases logging (online; tag 'augmented' to distinguish)
-# ---------------------------------------------------------------------------
+
 vis_backends = [
     dict(type='LocalVisBackend'),
     dict(
