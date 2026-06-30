@@ -1,21 +1,3 @@
-# configs/retinanet_virchow2_midogpp.py
-#
-# RetinaNet with a FROZEN Virchow2 (ViT-H/14) backbone + SimpleFeaturePyramid
-# neck, for mitotic-figure detection on MIDOG++.
-#
-# Aligned to the UNI / UNI2-h / Virchow RetinaNet configs so the RetinaNet row
-# differs ONLY in the detector head. Augmentation and RetinaNet head
-# hyperparameters are held constant across the row.
-#
-# BACKBONE (Virchow2 model card, paige-ai/Virchow2):
-#   - ViT-H/14: patch 14, embed_dim 1280, 32 layers, SwiGLU, CLS + 4 REGISTER
-#     tokens (5 extra tokens total; stripped in the backbone wrapper).
-#   - ImageNet normalization (DINOv2 recipe).
-#
-# *** PATCH 14 -> 1008 input, patches_1008, strides [7,14,28,56,112] ***
-#   RetinaNet is anchor-based, so the AnchorGenerator strides MUST match the
-#   patch-14 token map (same as Virchow / UNI2-h).
-
 custom_imports = dict(
     imports=[
         'src.custom_mmdet.backbones.virchow2_vit',
@@ -27,7 +9,7 @@ custom_imports = dict(
 
 _base_ = 'mmdet::retinanet/retinanet_r50_fpn_1x_coco.py'
 
-img_scale = (1008, 1008)        # patch-14 divisible (1008/14 = 72)
+img_scale = (1008, 1008)    
 
 metainfo = dict(
     classes=('mitotic figure',),
@@ -35,11 +17,10 @@ metainfo = dict(
 )
 
 model = dict(
-    # Preprocessor INSIDE model so UNI's ImageNet stats are actually applied.
     data_preprocessor=dict(
         type='DetDataPreprocessor',
-        mean=[123.675, 116.28, 103.53],   # ImageNet RGB mean (Virchow2 / DINOv2)
-        std=[58.395, 57.12, 57.375],      # ImageNet RGB std
+        mean=[123.675, 116.28, 103.53],   
+        std=[58.395, 57.12, 57.375],    
         bgr_to_rgb=True,
         pad_size_divisor=1,
     ),
@@ -53,13 +34,12 @@ model = dict(
     neck=dict(
         _delete_=True,
         type='SimpleFeaturePyramid',
-        in_channels=1280,                 # Virchow2 embed_dim (ViT-H)
+        in_channels=1280,               
         out_channels=256,
         scale_factors=(2.0, 1.0, 0.5, 0.25, 0.125),
         norm='LN',
     ),
 
-    # RetinaNet head -- canonical (Lin et al. 2017); UNCHANGED from the draft.
     bbox_head=dict(
         type='RetinaHead',
         num_classes=1,
@@ -71,7 +51,7 @@ model = dict(
             octave_base_scale=4,
             scales_per_octave=3,
             ratios=[0.5, 1.0, 2.0],
-            strides=[7, 14, 28, 56, 112],   # patch-14 -> correct for Virchow2
+            strides=[7, 14, 28, 56, 112],  
             center_offset=0.5,
         ),
         bbox_coder=dict(
@@ -102,19 +82,16 @@ model = dict(
         debug=False
     ),
 
-    # Test cfg aligned to Faster R-CNN row + WSI pipeline (low score floor).
     test_cfg=dict(
         nms_pre=3000,
         min_bbox_size=0,
-        score_thr=0.05,                     # was 0.15
+        score_thr=0.05,                    
         nms=dict(type='nms', iou_threshold=0.5),
-        max_per_img=300                     # was 100
+        max_per_img=300                   
     )
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline -- IDENTICAL to the Faster R-CNN / DETR configs.
-# ---------------------------------------------------------------------------
+
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -159,8 +136,7 @@ test_pipeline = val_pipeline
 
 data_root = './data/'
 
-# patch-14 backbone -> patches_1008 (1008/14 = 72 clean). Same data as the
-# other patch-14 backbones (H0/H1/Virchow/Virchow2). Confirmed on MUSICA.
+
 train_dataloader = dict(
     batch_size=16,
     num_workers=4,
@@ -211,7 +187,6 @@ test_dataloader = dict(
     )
 )
 
-# Optimizer -- matches Faster R-CNN UNI (AdamW, lr 2e-4, frozen backbone).
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
@@ -256,7 +231,6 @@ randomness = dict(seed=42, deterministic=False, diff_rank_seed=True)
 resume = False
 work_dir = './outputs/work_dirs/retinanet_virchow2_1024_100epochs'
 
-# Single source of truth for schedule + early stopping (no duplicate block).
 _max_epochs = 100
 
 train_cfg = dict(
@@ -277,12 +251,11 @@ custom_hooks = [
         type='EarlyStoppingHook',
         monitor='coco/bbox_mAP',
         rule='greater',
-        patience=10,           # matches Faster R-CNN row (was 8)
+        patience=10,         
         min_delta=0.001,
     ),
 ]
 
-# Weights & Biases (online).
 vis_backends = [
     dict(type='LocalVisBackend'),
     dict(
