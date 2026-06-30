@@ -1,21 +1,3 @@
-# configs/faster_rcnn_virchow2_midogpp.py
-#
-# Faster R-CNN with a FROZEN Virchow2 (ViT-H/14) backbone + SimpleFeaturePyramid
-# neck, for mitotic-figure detection on MIDOG++.
-#
-# BACKBONE (Virchow2 model card, paige-ai/Virchow2):
-#   - ViT-H/14: patch 14, embed_dim 1280, 32 layers, 16 heads, SwiGLU FFN,
-#     LayerScale, CLS token only (no register tokens).
-#   - Pretrained at 0.5 mpp (20x). ImageNet normalization (DINOv2 recipe).
-#
-# *** PATCH 14 -> same stride scheme as UNI2-h / H0 / H1 (NOT UNI patch-16) ***
-#   1008 input -> 72x72 token map (stride 14). SimpleFeaturePyramid
-#   scale_factors (2.0,1.0,0.5,0.25,0.125) -> physical strides [7,14,28,56,112].
-#   The RPN anchor strides and RoI featmap_strides are set to these values.
-#
-# Faster R-CNN head / optimizer / schedule / augmentation are IDENTICAL to the
-# UNI and UNI2-h configs (kept constant for a fair backbone comparison); only
-# the backbone, embed_dim (1280), and wandb name/tags change vs UNI2-h.
 
 custom_imports = dict(
     imports=[
@@ -28,21 +10,20 @@ custom_imports = dict(
 
 _base_ = 'mmdet::faster_rcnn/faster-rcnn_r50_fpn_1x_coco.py'
 
-img_scale = (1008, 1008)        # patch-14 divisible (1008/14 = 72)
+img_scale = (1008, 1008)       
 
 metainfo = dict(
     classes=('mitotic figure',),
     palette=[(220, 20, 60)],
 )
 
-# Patch-14 physical strides produced by the neck.
 _strides = [7, 14, 28, 56, 112]
 
 model = dict(
     data_preprocessor=dict(
         type='DetDataPreprocessor',
-        mean=[123.675, 116.28, 103.53],   # ImageNet RGB mean (DINOv2 recipe)
-        std=[58.395, 57.12, 57.375],      # ImageNet RGB std
+        mean=[123.675, 116.28, 103.53],   
+        std=[58.395, 57.12, 57.375],      
         bgr_to_rgb=True,
         pad_size_divisor=1,
     ),
@@ -56,7 +37,7 @@ model = dict(
     neck=dict(
         _delete_=True,
         type='SimpleFeaturePyramid',
-        in_channels=1280,                 # Virchow2 embed_dim (ViT-H)
+        in_channels=1280,                 
         out_channels=256,
         scale_factors=(2.0, 1.0, 0.5, 0.25, 0.125),
         norm='LN',
@@ -67,7 +48,7 @@ model = dict(
             type='AnchorGenerator',
             scales=[8],
             ratios=[0.5, 1.0, 2.0],
-            strides=_strides,             # [7,14,28,56,112]
+            strides=_strides,            
         ),
         bbox_coder=dict(
             type='DeltaXYWHBBoxCoder',
@@ -84,7 +65,7 @@ model = dict(
             type='SingleRoIExtractor',
             roi_layer=dict(type='RoIAlign', output_size=7, sampling_ratio=0),
             out_channels=256,
-            featmap_strides=_strides[:4],  # [7,14,28,56]
+            featmap_strides=_strides[:4], 
         ),
         bbox_head=dict(
             type='Shared2FCBBoxHead',
@@ -165,9 +146,7 @@ model = dict(
     )
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline -- IDENTICAL to UNI / UNI2-h / H0 / H1.
-# ---------------------------------------------------------------------------
+
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
