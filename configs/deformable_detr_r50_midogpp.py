@@ -1,32 +1,3 @@
-# configs/deformable_detr_r50_midogpp.py
-#
-# Deformable DETR with a standard ResNet-50 backbone on MIDOG++.
-#
-# CONVENTIONAL CNN BASELINE for the COMPAYL26 Deformable DETR row: an
-# ImageNet-pretrained ResNet-50, FULLY TRAINABLE, in mmdet's NATIVE Deformable
-# DETR setup. Answers "does a pathology foundation model beat a plain
-# supervised ResNet-50 Deformable DETR detector?".
-#
-# Unlike the foundation-model DETR cells (frozen ViT -> single token map ->
-# SimpleFeaturePyramid synthesises 4 levels), this baseline uses the detector
-# exactly as designed: ResNet's C3,C4,C5 feed a ChannelMapper that produces the
-# multi-scale features for deformable attention (num_feature_levels=4, with the
-# 4th level an extra conv on C5). This is the standard deformable-detr_r50
-# recipe -- NOT SimpleFeaturePyramid, which is a ViT adapter.
-#
-# Deliberate differences from the FM DETR cells (what a conventional ResNet
-# Deformable DETR actually is):
-#   - neck       : ChannelMapper (native), NOT SimpleFeaturePyramid
-#   - backbone   : trainable (frozen_stages=1 + a lower backbone LR), NOT frozen
-#   - input/data : the same 1008 patches (patches_1008), keep_ratio=False
-#   - normalization: ImageNet stats (ResNet pretrain)
-#
-# OPTIMIZER NOTE: Deformable DETR is canonically trained with AdamW (the
-# transformer needs it; SGD does not converge well for DETR-family models).
-# So this baseline uses AdamW with a 0.1x LR multiplier on the backbone --
-# the standard deformable-detr recipe -- even though the ResNet Faster R-CNN /
-# RetinaNet baselines use SGD. The optimizer follows the detector head.
-
 _base_ = 'mmdet::deformable_detr/deformable-detr_r50_16xb2-50e_coco.py'
 
 custom_imports = dict(
@@ -46,22 +17,19 @@ metainfo = dict(
 model = dict(
     data_preprocessor=dict(
         type='DetDataPreprocessor',
-        mean=[123.675, 116.28, 103.53],   # ImageNet RGB mean (ResNet pretrain)
-        std=[58.395, 57.12, 57.375],      # ImageNet RGB std
+        mean=[123.675, 116.28, 103.53],   
+        std=[58.395, 57.12, 57.375],     
         bgr_to_rgb=True,
         pad_size_divisor=1,
     ),
 
-    # Standard ResNet-50, ImageNet-pretrained, trainable.
-    # (Base config already specifies ResNet-50 with out_indices=(1,2,3) ->
-    #  C3,C4,C5 and num_feature_levels=4; we only adjust frozen_stages and
-    #  ensure the pretrained init + trainable norm.)
+
     backbone=dict(
         type='ResNet',
         depth=50,
         num_stages=4,
-        out_indices=(1, 2, 3),            # C3,C4,C5 for deformable attention
-        frozen_stages=1,                  # standard: freeze stem+stage1 only
+        out_indices=(1, 2, 3),           
+        frozen_stages=1,
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
@@ -69,8 +37,6 @@ model = dict(
                       checkpoint='torchvision://resnet50'),
     ),
 
-    # Native ChannelMapper neck (inherited from base; stated explicitly).
-    # Maps C3,C4,C5 (+1 extra level) to 256-d multi-scale features.
     neck=dict(
         type='ChannelMapper',
         in_channels=[512, 1024, 2048],
@@ -84,9 +50,7 @@ model = dict(
     bbox_head=dict(num_classes=1),
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline -- same full set as the other cells.
-# ---------------------------------------------------------------------------
+
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -132,7 +96,7 @@ test_pipeline = val_pipeline
 data_root = './data/'
 
 train_dataloader = dict(
-    batch_size=16,                        # train batch (was 8)
+    batch_size=16,                        
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -181,9 +145,7 @@ test_dataloader = dict(
     )
 )
 
-# Optimizer: canonical Deformable DETR AdamW with 0.1x backbone LR.
-# (For a TRAINABLE ResNet the backbone LR multiplier matters -- the standard
-#  DETR recipe trains the backbone slower than the transformer.)
+
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
