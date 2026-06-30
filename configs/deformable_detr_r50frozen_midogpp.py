@@ -1,22 +1,3 @@
-# configs/deformable_detr_r50frozen_midogpp.py
-#
-# FROZEN ResNet-50 baseline for the COMPAYL26 Deformable DETR row.
-#
-# ImageNet-pretrained ResNet-50 used STRICTLY AS A FROZEN feature extractor
-# (like the FM ViTs), with the native ChannelMapper neck + the IDENTICAL
-# Deformable DETR head as the frozen-FM cells. Controlled "frozen ImageNet
-# CNN" vs "frozen pathology FM" baseline.
-#
-# FROZEN: frozen_stages=4, BN requires_grad=False + norm_eval=True -> whole
-# backbone frozen incl. running stats; only ChannelMapper + DETR transformer
-# (encoder/decoder/head) train.
-# NECK: native ChannelMapper over C3,C4,C5 (+1 extra level) -> num_outs=4,
-# NOT SimpleFeaturePyramid.
-#
-# OPTIMIZER: Deformable DETR is canonically AdamW; here the backbone is FROZEN
-# so there is no backbone-LR multiplier to set -- a single AdamW LR trains the
-# ChannelMapper + transformer, matching the frozen-FM DETR cells.
-
 _base_ = 'mmdet::deformable_detr/deformable-detr_r50_16xb2-50e_coco.py'
 
 custom_imports = dict(
@@ -35,7 +16,7 @@ model = dict(
         bgr_to_rgb=True,
         pad_size_divisor=1,
     ),
-    # FROZEN ResNet-50 (whole backbone), C3,C4,C5 for deformable attention.
+
     backbone=dict(
         type='ResNet',
         depth=50,
@@ -111,13 +92,12 @@ test_evaluator = dict(type='CocoMetric',
     ann_file='data/coco_annotations/patches_1008/midogpp_test.json',
     metric='bbox', format_only=False, backend_args=None)
 
-# AdamW; backbone frozen so no backbone-LR multiplier needed.
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=2e-4, weight_decay=1e-4, betas=(0.9, 0.999)),
     paramwise_cfg=dict(norm_decay_mult=0.0, bias_decay_mult=0.0),
-    clip_grad=dict(max_norm=0.1, norm_type=2),   # DETR-standard tight clip
+    clip_grad=dict(max_norm=0.1, norm_type=2),   
 )
 
 default_hooks = dict(
