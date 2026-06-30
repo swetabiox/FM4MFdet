@@ -1,31 +1,3 @@
-# configs/retinanet_uni_midogpp.py
-#
-# RetinaNet with a FROZEN UNI (ViT-L/16) backbone + SimpleFeaturePyramid neck,
-# for mitotic-figure detection on MIDOG++.
-#
-# This config is aligned to faster_rcnn_uni_midogpp.py so that RetinaNet-UNI
-# and Faster-R-CNN-UNI differ ONLY in the detector head. Everything outside the
-# head -- backbone, neck, normalization, augmentation, optimiser, LR schedule,
-# early stopping, data, batch sizes -- matches the Faster R-CNN UNI config.
-#
-# BACKBONE (UNI model card, MahmoodLab/UNI):
-#   - ViT-L/16: patch 16, embed_dim 1024, init_values 1e-5.
-#   - ImageNet normalization (DINOv2 recipe).
-#
-# *** PATCH 16 -> 1024 input (1024/16 = 64), uses patches_1024 data. ***
-#   UNI is the patch-16 exception; anchor strides [8,16,32,64,128] are correct
-#   for a stride-16 token map (unlike the patch-14 backbones).
-#
-# FIXES vs the earlier RetinaNet UNI draft:
-#   - data_preprocessor moved INSIDE model with correct spelling
-#     'DetDataPreprocessor' (the earlier top-level 'DetDataPreProcessor' typo
-#     was dead code, so UNI's normalization was silently NOT applied).
-#   - added full augmentation + HED stain (was Resize+Flip only).
-#   - score_thr 0.15 -> 0.05, max_per_img 100 -> 300 (match Faster R-CNN row
-#     and the WSI threshold-optimisation pipeline, which needs a low floor).
-#   - lr 1e-4 -> 2e-4, patience 8 -> 10 (match Faster R-CNN row).
-#   - removed the duplicate 40-epoch train_cfg/param_scheduler block.
-
 custom_imports = dict(
     imports=[
         'src.custom_mmdet.backbones.uni_vit',
@@ -37,7 +9,7 @@ custom_imports = dict(
 
 _base_ = 'mmdet::retinanet/retinanet_r50_fpn_1x_coco.py'
 
-img_scale = (1024, 1024)        # patch-16 divisible (1024/16 = 64)
+img_scale = (1024, 1024)       
 
 metainfo = dict(
     classes=('mitotic figure',),
@@ -45,11 +17,10 @@ metainfo = dict(
 )
 
 model = dict(
-    # Preprocessor INSIDE model so UNI's ImageNet stats are actually applied.
     data_preprocessor=dict(
         type='DetDataPreprocessor',
-        mean=[123.675, 116.28, 103.53],   # ImageNet RGB mean (UNI / DINOv2)
-        std=[58.395, 57.12, 57.375],      # ImageNet RGB std
+        mean=[123.675, 116.28, 103.53],  
+        std=[58.395, 57.12, 57.375],      
         bgr_to_rgb=True,
         pad_size_divisor=1,
     ),
@@ -64,13 +35,12 @@ model = dict(
     neck=dict(
         _delete_=True,
         type='SimpleFeaturePyramid',
-        in_channels=1024,                 # UNI embed_dim (ViT-L)
+        in_channels=1024,                
         out_channels=256,
         scale_factors=(2.0, 1.0, 0.5, 0.25, 0.125),
         norm='LN',
     ),
 
-    # RetinaNet head -- canonical (Lin et al. 2017); UNCHANGED from the draft.
     bbox_head=dict(
         type='RetinaHead',
         num_classes=1,
@@ -82,7 +52,7 @@ model = dict(
             octave_base_scale=4,
             scales_per_octave=3,
             ratios=[0.5, 1.0, 2.0],
-            strides=[8, 16, 32, 64, 128],   # patch-16 -> correct for UNI
+            strides=[8, 16, 32, 64, 128],   
             center_offset=0.5,
         ),
         bbox_coder=dict(
@@ -113,19 +83,16 @@ model = dict(
         debug=False
     ),
 
-    # Test cfg aligned to Faster R-CNN row + WSI pipeline (low score floor).
     test_cfg=dict(
         nms_pre=3000,
         min_bbox_size=0,
-        score_thr=0.05,                     # was 0.15
+        score_thr=0.05,                     
         nms=dict(type='nms', iou_threshold=0.5),
-        max_per_img=300                     # was 100
+        max_per_img=300                     
     )
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline -- IDENTICAL to the Faster R-CNN / DETR configs.
-# ---------------------------------------------------------------------------
+
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -170,8 +137,7 @@ test_pipeline = val_pipeline
 
 data_root = './data/'
 
-# patch-16 backbone -> patches_1024 (UNI needs 1024; the patch-14 backbones
-# use patches_1008). Confirm patches_1024 exists on MUSICA before running.
+
 train_dataloader = dict(
     batch_size=16,
     num_workers=4,
@@ -222,7 +188,6 @@ test_dataloader = dict(
     )
 )
 
-# Optimizer -- matches Faster R-CNN UNI (AdamW, lr 2e-4, frozen backbone).
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
@@ -267,7 +232,6 @@ randomness = dict(seed=42, deterministic=False, diff_rank_seed=True)
 resume = False
 work_dir = './outputs/work_dirs/retinanet_uni_1024_100epochs'
 
-# Single source of truth for schedule + early stopping (no duplicate block).
 _max_epochs = 100
 
 train_cfg = dict(
@@ -288,12 +252,11 @@ custom_hooks = [
         type='EarlyStoppingHook',
         monitor='coco/bbox_mAP',
         rule='greater',
-        patience=10,           # matches Faster R-CNN row (was 8)
+        patience=10,          
         min_delta=0.001,
     ),
 ]
 
-# Weights & Biases (online).
 vis_backends = [
     dict(type='LocalVisBackend'),
     dict(
