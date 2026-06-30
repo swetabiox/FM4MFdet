@@ -1,16 +1,3 @@
-# configs/retinanet_r50frozen_midogpp.py
-#
-# FROZEN ResNet-50 baseline for the COMPAYL26 RetinaNet row.
-#
-# ImageNet-pretrained ResNet-50 used STRICTLY AS A FROZEN feature extractor
-# (like the FM ViTs), with native FPN + the IDENTICAL RetinaNet head,
-# optimizer, schedule and augmentation as the frozen-FM cells. Controlled
-# "frozen ImageNet CNN" vs "frozen pathology FM" baseline.
-#
-# FROZEN: frozen_stages=4, BN requires_grad=False + norm_eval=True -> entire
-# backbone frozen incl. running stats; only FPN neck + RetinaNet head train.
-# NECK: native FPN (P3..P7), strides [8,16,32,64,128]; RetinaNet anchors use
-# these ResNet-native strides (NOT the patch-14 values of the ViT cells).
 
 _base_ = 'mmdet::retinanet/retinanet_r50_fpn_1x_coco.py'
 
@@ -35,13 +22,12 @@ model = dict(
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
-        frozen_stages=4,                  # FREEZE EVERYTHING
+        frozen_stages=4,                
         norm_cfg=dict(type='BN', requires_grad=False),
         norm_eval=True,
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50'),
     ),
-    # RetinaNet's standard FPN: in C3,C4,C5 + 2 extra levels on input (P6,P7).
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -50,9 +36,6 @@ model = dict(
         add_extra_convs='on_input',
         num_outs=5,
     ),
-    # RetinaNet head -- IDENTICAL hyperparameters to the FM cells (octave base
-    # scale 4, 3 scales/octave, ratios .5/1/2, focal gamma 2.0 alpha 0.25),
-    # anchor strides are FPN-native [8,16,32,64,128].
     bbox_head=dict(
         num_classes=1,
         anchor_generator=dict(
