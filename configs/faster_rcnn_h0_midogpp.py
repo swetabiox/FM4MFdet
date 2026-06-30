@@ -1,21 +1,3 @@
-# configs/faster_rcnn_h0_midogpp.py
-#
-# Faster R-CNN with a FROZEN H-Optimus-0 (ViT-g/14) backbone +
-# SimpleFeaturePyramid neck, for mitotic-figure detection on MIDOG++.
-#
-# BACKBONE (H-optimus-0 model card, bioptimus/H-optimus-0):
-#   - ViT-g/14: patch 14, embed_dim 1536, 1.1B params, init_values 1e-5.
-#   - Pretrained at 0.5 mpp on H&E. Uses H-OPTIMUS-SPECIFIC normalization
-#     stats (NOT ImageNet) -- see data_preprocessor below.
-#
-# *** PATCH 14 -> same stride scheme as UNI2-h / Virchow / H1 ***
-#   1008 input -> 72x72 token map (stride 14). SimpleFeaturePyramid
-#   scale_factors (2.0,1.0,0.5,0.25,0.125) -> physical strides [7,14,28,56,112].
-#
-# Faster R-CNN head / optimizer / schedule / augmentation are IDENTICAL to the
-# UNI / UNI2-h / Virchow configs (kept constant for a fair backbone
-# comparison); only the backbone, embed_dim (1536), and normalization change.
-
 custom_imports = dict(
     imports=[
         'src.custom_mmdet.backbones.hoptimus0_vit',
@@ -27,14 +9,13 @@ custom_imports = dict(
 
 _base_ = 'mmdet::faster_rcnn/faster-rcnn_r50_fpn_1x_coco.py'
 
-img_scale = (1008, 1008)        # patch-14 divisible (1008/14 = 72)
+img_scale = (1008, 1008)        
 
 metainfo = dict(
     classes=('mitotic figure',),
     palette=[(220, 20, 60)],
 )
 
-# Patch-14 physical strides produced by the neck (see header).
 _strides = [7, 14, 28, 56, 112]
 
 model = dict(
@@ -68,7 +49,7 @@ model = dict(
             type='AnchorGenerator',
             scales=[8],
             ratios=[0.5, 1.0, 2.0],
-            strides=_strides,             # [7,14,28,56,112], NOT [8,16,...]
+            strides=_strides,             
         ),
         bbox_coder=dict(
             type='DeltaXYWHBBoxCoder',
@@ -85,8 +66,6 @@ model = dict(
             type='SingleRoIExtractor',
             roi_layer=dict(type='RoIAlign', output_size=7, sampling_ratio=0),
             out_channels=256,
-            # Finest 4 of the 5 levels for RoI pooling (standard FPN); strides
-            # are the patch-14 values [7,14,28,56].
             featmap_strides=_strides[:4],
         ),
         bbox_head=dict(
@@ -105,7 +84,6 @@ model = dict(
         )
     ),
 
-    # Train cfg -- IDENTICAL to UNI config (standard Faster R-CNN values).
     train_cfg=dict(
         rpn=dict(
             assigner=dict(
@@ -154,7 +132,6 @@ model = dict(
         )
     ),
 
-    # Test cfg -- IDENTICAL to UNI config.
     test_cfg=dict(
         rpn=dict(
             nms_pre=2000,
@@ -170,9 +147,6 @@ model = dict(
     )
 )
 
-# ---------------------------------------------------------------------------
-# AUGMENTED training pipeline -- IDENTICAL to UNI / H0 / H1.
-# ---------------------------------------------------------------------------
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -217,7 +191,6 @@ test_pipeline = val_pipeline
 
 data_root = './data/'
 
-# NOTE: patch-14 backbone -> use the 1008 patch set (matches H0/H1), NOT 1024.
 train_dataloader = dict(
     batch_size=16,
     num_workers=8,
@@ -268,7 +241,6 @@ test_dataloader = dict(
     )
 )
 
-# Optimizer -- IDENTICAL to UNI config (AdamW, frozen-backbone setup).
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
@@ -313,7 +285,6 @@ randomness = dict(seed=42, deterministic=False, diff_rank_seed=True)
 resume = False
 work_dir = './outputs/work_dirs/faster_rcnn_h0_1008_100epochs'
 
-# Schedule + early stopping -- IDENTICAL to UNI config.
 _max_epochs = 100
 
 train_cfg = dict(
@@ -339,7 +310,6 @@ custom_hooks = [
     ),
 ]
 
-# Weights & Biases (online).
 vis_backends = [
     dict(type='LocalVisBackend'),
     dict(
